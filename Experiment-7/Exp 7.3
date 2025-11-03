@@ -1,0 +1,98 @@
+1. Node.js + Express + Socket.io Backend
+server.js
+
+const express = require('express');
+const http = require('http');
+const socketIo = require('socket.io');
+const cors = require('cors');
+
+const app = express();
+app.use(cors());
+
+const server = http.createServer(app);
+const io = socketIo(server, {
+  cors: { origin: "*" }
+});
+
+io.on('connection', socket => {
+  socket.on('chat message', msg => {
+    io.emit('chat message', msg); // broadcast to all clients
+  });
+});
+
+server.listen(5000, () => console.log('Socket server running on port 5000'));
+
+2. React Frontend Chat UI
+Install dependencies:
+npm install socket.io-client
+
+----Chat.js
+import React, { useState, useEffect, useRef } from 'react';
+import io from 'socket.io-client';
+
+const socket = io('http://localhost:5000');
+
+export default function Chat() {
+  const [name, setName] = useState('');
+  const [messages, setMessages] = useState([]);
+  const [text, setText] = useState('');
+  const messagesEndRef = useRef(null);
+
+  useEffect(() => {
+    socket.on('chat message', msg => {
+      setMessages(messages => [...messages, msg]);
+    });
+    return () => socket.off('chat message');
+  }, []);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
+
+  const sendMessage = (e) => {
+    e.preventDefault();
+    if (name && text) {
+      const now = new Date();
+      const time = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      socket.emit('chat message', { name, time, text });
+      setText('');
+    }
+  };
+
+  return (
+    <div style={{ width:400, margin:"30px auto", border:"2px solid #aaa", borderRadius:5, padding:18 }}>
+      <h2 style={{textAlign:"center"}}>Real-Time Chat</h2>
+      <input
+        style={{ width:'98%', marginBottom:9 }}
+        type="text" placeholder="Your name"
+        value={name}
+        onChange={e => setName(e.target.value)}
+      />
+      <div style={{ height:180, background:'#fff', border:'1px solid #aaa', marginBottom:9, padding:9, overflowY:'auto' }}>
+        {messages.map((msg, i) => (
+          <div key={i}><b>{msg.name}</b> [{msg.time}]: {msg.text}</div>
+        ))}
+        <div ref={messagesEndRef} />
+      </div>
+      <form onSubmit={sendMessage} style={{ display:'flex', gap:8 }}>
+        <input
+          style={{ flex:1 }}
+          type="text"
+          placeholder="Type your message..."
+          value={text}
+          onChange={e => setText(e.target.value)}
+        />
+        <button type="submit">Send</button>
+      </form>
+    </div>
+  );
+}
+---App.js
+import React from 'react';
+import Chat from './Chat';
+
+function App() {
+  return <Chat />;
+}
+
+export default App;

@@ -1,0 +1,63 @@
+1. Sample Inserts (MongoDB Shell)
+
+db.products.insertMany([
+  {
+    name: "Running Shoes",
+    price: 120,
+    category: "Footwear",
+    variants: [
+      { color: "Red", size: "M", stock: 10 },
+      { color: "Blue", size: "L", stock: 5 }
+    ]
+  },
+  {
+    name: "Winter Jacket",
+    price: 200,
+    category: "Apparel",
+    variants: [
+      { color: "Black", size: "S", stock: 8 },
+      { color: "Gray", size: "M", stock: 12 }
+    ]
+  },
+  {
+    name: "Smartphone",
+    price: 699,
+    category: "Electronics",
+    variants: []
+  }
+])
+
+2. Mongoose Model
+
+const mongoose = require('mongoose');
+
+const variantSchema = new mongoose.Schema({
+  color: String,
+  size: String,
+  stock: Number
+}, { _id: true });
+
+const productSchema = new mongoose.Schema({
+  name: String,
+  price: Number,
+  category: String,
+  variants: [variantSchema]
+});
+
+const Product = mongoose.model('Product', productSchema);
+
+module.exports = Product;
+
+
+3. Example Queries
+Get all products:
+
+db.products.find()
+
+or (Mongoose):
+
+Product.find({})
+
+Filter by category ("Electronics"):
+
+db.products.find({ category: "Electronics" })

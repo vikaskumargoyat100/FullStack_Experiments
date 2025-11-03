@@ -1,0 +1,98 @@
+----------server.js
+const express = require('express');
+const app = express();
+const PORT = 3000;
+
+// Middleware 1: Request Logger
+// Logs HTTP method, URL, and timestamp for every request
+function requestLogger(req, res, next) {
+    const timestamp = new Date().toISOString();
+    console.log(`[${timestamp}] ${req.method} ${req.url}`);
+    next();
+}
+
+// Middleware 2: Bearer Token Authentication
+// Checks for 'Authorization: Bearer mysecrettoken' header
+function authenticateToken(req, res, next) {
+    const authHeader = req.headers['authorization'];
+    
+    if (!authHeader) {
+        return res.status(401).json({
+            message: 'Authorization header missing or incorrect'
+        });
+    }
+    
+    const token = authHeader.split(' ')[1]; // Extract token from "Bearer TOKEN"
+    
+    if (token === 'mysecrettoken') {
+        next(); // Token is valid, proceed to route
+    } else {
+        return res.status(401).json({
+            message: 'Authorization header missing or incorrect'
+        });
+    }
+}
+
+// Apply logging middleware globally to all routes
+app.use(requestLogger);
+
+// Route 1: Public route (no authentication required)
+app.get('/public', (req, res) => {
+    res.status(200).send('This is a public route. No authentication required.');
+});
+
+// Route 2: Protected route (requires Bearer token)
+app.get('/protected', authenticateToken, (req, res) => {
+    res.status(200).send('You have accessed a protected route with a valid Bearer token!');
+});
+
+// Start the server
+app.listen(PORT, () => {
+    console.log(`Server is running on http://localhost:${PORT}`);
+});
+
+--------------------------
+Setup Instructions
+1. Initialize the project
+mkdir express-auth-middleware
+cd express-auth-middleware
+npm init -y
+npm install express
+2. Create server.js
+Copy the code above into a file named server.js
+
+3. Start the server
+node server.js
+--------------------------------
+
+Testing the Routes
+Test 1: Public Route (No Authentication)
+This should return 200 OK with the public message
+curl http://localhost:3000/public
+Expected Response:
+
+HTTP/1.1 200 OK
+This is a public route. No authentication required.
+Test 2: Protected Route (No Token)
+This should return 401 Unauthorized with an error message
+curl http://localhost:3000/protected
+Expected Response:
+
+HTTP/1.1 401 Unauthorized
+{
+  "message": "Authorization header missing or incorrect"
+}
+Test 3: Protected Route (With Valid Token)
+This should return 200 OK with the protected message
+curl -H "Authorization: Bearer mysecrettoken" http://localhost:3000/protected
+Expected Response:
+
+HTTP/1.1 200 OK
+You have accessed a protected route with a valid Bearer token!
+Alternative: Using Postman
+Public Route: GET http://localhost:3000/public
+Protected Route (No Auth): GET http://localhost:3000/protected
+Protected Route (With Auth):
+Method: GET
+URL: http://localhost:3000/protected
+Headers: Add Authorization with value Bearer mysecrettoken

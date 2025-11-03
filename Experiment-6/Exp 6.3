@@ -1,0 +1,271 @@
+------------------server.js
+const express = require('express');
+const mongoose = require('mongoose');
+const app = express();
+const PORT = 3000;
+
+// Middleware to parse JSON
+app.use(express.json());
+
+// MongoDB Connection
+mongoose.connect('mongodb://localhost:27017/bankingDB', {
+    useNewUrlParser: true,
+    useUnifiedTopology: true
+})
+.then(() => console.log('Connected to MongoDB'))
+.catch(err => console.error('MongoDB connection error:', err));
+
+// User Schema
+const userSchema = new mongoose.Schema({
+    name: { type: String, required: true },
+    balance: { type: Number, required: true, default: 0 }
+});
+
+const User = mongoose.model('User', userSchema);
+
+// POST /create-users - Create sample users for testing
+app.post('/create-users', async (req, res) => {
+    try {
+        // Clear existing users
+        await User.deleteMany({});
+        
+        // Create sample users
+        const users = await User.insertMany([
+            { name: 'Alice', balance: 1000 },
+            { name: 'Bob', balance: 500 }
+        ]);
+        
+        res.status(201).json({
+            message: 'Users created',
+            users: users.map(u => ({
+                name: u.name,
+                balance: u.balance,
+                _id: u._id,
+                __v: u.__v
+            }))
+        });
+    } catch (error) {
+        res.status(500).json({ message: 'Error creating users', error: error.message });
+    }
+});
+
+// POST /transfer - Transfer money between accounts
+app.post('/transfer', async (req, res) => {
+    try {
+        const { fromUserId, toUserId, amount } = req.body;
+        
+        // Validate input
+        if (!fromUserId || !toUserId || !amount) {
+            return res.status(400).json({
+                message: 'Missing required fields: fromUserId, toUserId, amount'
+            });
+        }
+        
+        if (amount <= 0) {
+            return res.status(400).json({
+                message: 'Amount must be greater than 0'
+            });
+        }
+        
+        // Find sender and receiver
+        const sender = await User.findById(fromUserId);
+        const receiver = await User.findById(toUserId);
+        
+        // Check if both users exist
+        if (!sender) {
+            return res.status(404).json({
+                message: 'Sender account not found'
+            });
+        }
+        
+        if (!receiver) {
+            return res.status(404).json({
+                message: 'Receiver account not found'
+            });
+        }
+        
+        // Check if sender has sufficient balance
+        if (sender.balance < amount) {
+            return res.status(400).json({
+                message: 'Insufficient balance'
+            });
+        }
+        
+        // Perform transfer (sequential updates)
+        sender.balance -= amount;
+        await sender.save();
+        
+        receiver.balance += amount;
+        await receiver.save();
+        
+        res.status(200).json({
+            message: `Transferred $${amount} from ${sender.name} to ${receiver.name}`,
+            senderBalance: sender.balance,
+            receiverBalance: receiver.balance
+        });
+        
+    } catch (error) {
+        res.status(500).json({
+            message: 'Transfer failed',
+            error: error.message
+        });
+    }
+});
+
+// POST /withdraw - Withdraw money from account
+app.post('/withdraw', async (req, res) => {
+    try {
+        const { userId, amount } = req.body;
+        
+        if (!userId || !amount) {
+            return res.status(400).json({
+                message: 'Missing required fields: userId, amount'
+            });
+        }
+        
+        if (amount <= 0) {
+            return res.status(400).json({
+                message: 'Amount must be greater than 0'
+            });
+        }
+        
+        const user = await User.findById(userId);
+        
+        if (!user) {
+            return res.status(404).json({
+                message: 'User account not found'
+            });
+        }
+        
+        if (user.balance < amount) {
+            return res.status(400).json({
+                message: 'Insufficient balance'
+            });
+        }
+        
+        user.balance -= amount;
+        await user.save();
+        
+        res.status(200).json({
+            message: `Withdrew $${amount}`,
+            newBalance: user.balance
+        });
+        
+    } catch (error) {
+        res.status(500).json({
+            message: 'Withdrawal failed',
+            error: error.message
+        });
+    }
+});
+
+// POST /deposit - Deposit money to account
+app.post('/deposit', async (req, res) => {
+    try {
+        const { userId, amount } = req.body;
+        
+        if (!userId || !amount) {
+            return res.status(400).json({
+                message: 'Missing required fields: userId, amount'
+            });
+        }
+        
+        if (amount <= 0) {
+            return res.status(400).json({
+                message: 'Amount must be greater than 0'
+            });
+        }
+        
+        const user = await User.findById(userId);
+        
+        if (!user) {
+            return res.status(404).json({
+                message: 'User account not found'
+            });
+        }
+        
+        user.balance += amount;
+        await user.save();
+        
+        res.status(200).json({
+            message: `Deposited $${amount}`,
+            newBalance: user.balance
+        });
+        
+    } catch (error) {
+        res.status(500).json({
+            message: 'Deposit failed',
+            error: error.message
+        });
+    }
+});
+
+// GET /balance/:userId - Get account balance
+app.get('/balance/:userId', async (req, res) => {
+    try {
+        const { userId } = req.params;
+        
+        const user = await User.findById(userId);
+        
+        if (!user) {
+            return res.status(404).json({
+                message: 'User account not found'
+            });
+        }
+        
+        res.status(200).json({
+            name: user.name,
+            balance: user.balance
+        });
+        
+    } catch (error) {
+        res.status(500).json({
+            message: 'Error fetching balance',
+            error: error.message
+        });
+    }
+});
+
+// Start server
+app.listen(PORT, () => {
+    console.log(`Server running on http://localhost:${PORT}`);
+});
+-----------------------------------
+
+Setup Instructions
+1. Prerequisites
+# Start MongoDB (varies by OS)
+# macOS: brew services start mongodb-community
+# Linux: sudo systemctl start mongod
+# Windows: net start MongoDB
+2. Initialize Project
+mkdir account-transfer-api
+cd account-transfer-api
+npm init -y
+npm install express mongoose
+3. Create server.js
+Copy the code above into server.js
+
+4. Start Server
+node server.js
+-----------------------------------------------
+Testing with Postman
+1. Create Users
+Method: POST
+URL: http://localhost:3000/create-users
+Body: None (empty)
+Save the _id values from the response for use in transfer requests
+2. Transfer Money
+Method: POST
+URL: http://localhost:3000/transfer
+Headers: Content-Type: application/json
+Body (raw JSON):
+{
+  "fromUserId": "686fbc457033f674a4840320",
+  "toUserId": "686fbc457033f674a4840321",
+  "amount": 150
+}
+3. Check Balance
+Method: GET
+URL: http://localhost:3000/balance/USER_ID_HERE
+---------------------------------------------------
